@@ -1,0 +1,77 @@
+Explaination of how 'open' is implemented starting from sys_open():
+sys_open() is in sysfile.c extracts the first argument--the file path--and 
+also extracts the second argument--file access flags. It then calls begin_op()
+to signify a start of an operation. It then checks if the 
+file access flag is O_CREATE. If the file access flag is O_CREATE, then
+create() is called to creatae a new file. If the file couldn't be created, then
+end_op() is called to end the operation and 
+-1 is returned, indicating that it failed. If the flag O_CREATE wasn't given, then
+it would call namei() with the file path as an argument for namei() to retrieve the 
+inode as ip. If the file doesn't exist, then end_op() is called to end the operation 
+and -1 is returned, indicating it failed. It then
+locks the inode ip using ilock() wiht parameter ip, and checks if the file is a
+directory without read access. If the file is a directory without read access,
+then the inode is unlocked and the reference count for the inode ip is decremented using
+iunlockput() since we won't need it anymore with parameter ip, and -1 is returned.
+Afterwards, it tries to allocate a file struct to f and assign a file descriptor (fd) to 
+the allocated file struct as fd. If a file struct isn't able to be allocated to f, then 
+it will close the allocated file using fileclose() with parameter f. If a file struct
+isn't able to be allocated to f or a file descriptor isn't to be assigned to the allocated
+file struct, then the inode ip is unlocked and reference count for ip is decremented using
+iunlockput() with parameter ip, end_op() is called to end the operation,
+and -1 is returned to indicate failure. If a file struct
+was successfully allocated to f and a file descriptor was assigned to the allocated
+file struct as fd, then iunlock() is called with parameter ip to unlock but not 
+decrement the inode reference count since we will still need it. end_op() is also called
+to indicate the end of an operation. Finally, the file struct f is marked of type
+FD_INODE to represent a file inode, f is associated with the inode ip, the offset
+of f is set to 0 to ensure reading and writing for f starts at the beginning of the file,
+the file is made readable if it's not opened with write only (O_WRONLY), the file is made writable
+if it is opened with write only (O_WRONLY) or read and write (O_RDWR), and the file descriptor
+fd from earlier is returned.
+
+namei() is in fs.c and it returns the result of namex() which takes in namei()'s
+argument--the file path where we assuming it to be /usr/bin/ls--along with 0 and a buffer.
+
+namex() is also in fs.c and it first checks if the given path is a absolute or relative path.
+It checks if the path is absolute by checking if the first character is '/'. If it is an absolute path, then
+it will store the result of iget(ROOTDEV, ROOTINO), which gets the inode for the root directory,
+in a variable called ip. If it is a relative path then it will store the result of idup(proc->cwd), which
+would get the inode of the current working directory then duplicate the inode by incrementing 
+the reference count of the inode, in a variable called ip. Since we assumed the path was /usr/bin/ls then
+we would go the route of the absolute path. Afterwards, there is a while loop 
+while((path = skipelem(path, name)) != 0) that checks if the result of skipelem is not equal to 0.
+
+When we first enter skipelem with path = /usr/bin/ls and name = name[DIRSIZ] <-- a buffer there is another
+while loop that checks if path points to '/' and it does since path starts with '/'. Thus, it does path++
+which makes path now point to 'u'. The while loop checks if path points to '/' and it doesn't anymore, so we
+move onto the if statement that checks if path points to a null terminator and it doesn't, so we set a variable
+s = path, so s = 'usr/bin/ls'. There is then another while loop that checks if path doesn't point to '/' and 
+path doesn't point to a null terminator, and it is true that path doesn't point to '/' or a null terminator, so
+we go in the while loop, which moves the pointer for path by one. We continue with the while loop until it fails
+the condition, which leaves us with path = /bin/ls . We then find the difference between path and s and
+store it in a variable called len, so len = 3 because the '/' in '/bin/ls' is an address 3 ahead of 'u' in
+'usr/bin/ls'. We then check if len = 3 >= DIRSIZ = 40, and it's not so we go to the else case which does
+memmove(name, s, len); which would take the first 3 bytes of s and store it in name, so now name = usr . 
+In the else case is also name[len] = 0, which adds the null terminator to the end of name, so now 
+name = 'usr\0'. There is then another while loop that checks if path points to '/' and it does since it
+points to '/bin/ls' so the body of the while loop increments the pointer of path by 1 and and it checks again
+and it fails the condition, so now path = 'bin/ls' and it returns path, so path = 'bin/ls'.
+
+Coming back to while((path = skipelem(path, name)) != 0), path = 'bin/ls' which is not equal to the 
+null terminator so we go in the body which first locks ip, then checks if the type of ip is not a directory, but
+ip is a directory since it points to '/' so we exit the if statement. We then enter another if statement that
+checks if nameiparent is true and path points to the null terminator, but path doesn't, so we don't enter the if 
+statement. There is then another if statement if((next = dirlookup(ip, name, 0)) == 0) that checks 
+if the result of dirlookup with parameters ip, name, and 0 is equal to 0. dirlookup will check if a directory
+entry is in a directory, and if it is found, then it will return the inode for that entry, otherwise 0.
+The condition will fail, so we do not enter the body, then iunlockput() is called on ip to unlock ip and 
+decrease the reference count, then it sets ip to next, which is inode returned earlier. It then checks if
+nameiparent is equal to 1, but it isn't so we finished one iteration of the while loop
+while((path = skipelem(path, name)) != 0). We go for a second iteration in the while loop and
+skipelem() with path = 'bin/ls' and name = 'usr\0' which will cause path to become 'ls' and name will become
+'bin\0'. It will then go all the way to the if statement with the dirlookup and fail but make next turn to
+a new inode. ip is the unlocked and the reference count is decreased. ip is set to next, and we go for a third
+iteration. After skipelem, path = '\0' and name = 'ls\0'. We then enter the while loop for a forth iteration
+and fail because path != 0 fails. We then check if nameiparent is equal to 0, but it fails, so we don't enter 
+the body, and finally return ip. 

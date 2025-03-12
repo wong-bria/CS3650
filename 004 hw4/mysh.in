@@ -1,0 +1,16 @@
+echo "making directory tmp-testing"
+rm -rf tmp-testing
+mkdir tmp-testing
+echo ""
+echo "chdir: tmp-testing, REDIRECT: echo 'Hi, mom' TO  hello.txt"
+cd tmp-testing
+echo "Hi, mom!" > hello.txt
+ls
+cat hello.txt
+echo "Testing pipes:  PIPE FROM ls TO wc"
+ls -g -o | wc
+echo "Removing tmp-testing directory"
+rm hello.txt
+cd ..
+rmdir tmp-testing
+echo

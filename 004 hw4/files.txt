@@ -1,0 +1,27 @@
+The three data structures, "fd", "struct file", and "struct inode", are related
+to each other because they are required to work together inside the sys_open()
+function in the sysfile.c file to make this function work properly: returning fd.
+
+In the function sys_open(), 3 of the declared variables are int fd, which is the "fd",
+struct file *f, which is the "struct file", and struct inode *ip, which is the "struct inode".
+The "struct inode" or ip is initially set the to result namei(path) in the line if((ip = namei(path)) == 0).
+We would want the "struct inode", ip, not being equal to 0 to continue with the code inorder to see
+the relationship between the 3 data structures. The next line of interest in this function is
+if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0). This line shows a relationship between the
+"struct file", f, and "fd", fd, because the or statement is evaluated from left to right. Thus,
+if the file allocation for f results in 0, indicating a failure in file allocation, then the 
+right side of the or doesn't need to be evaluated and it returns -1 indicating failure in the
+body at the line 'return -1'. Thus, for sys_open() to successfully return a file descriptor fd,
+then there must be a successful file allocation for the struct file f. Afterwards, we go to the right
+side of the or statement where the "fd", fd, uses f as a parameter for fdalloc to allocate a file
+descriptor for f to be stored in fd. This shows a clear relationship between the "fd" and "struct file"
+because the value of the "fd", fd, depends on the "struct file", f. To finally see the relation between
+all 3 data structure, we would want the right side of this if statement to also be false, so fd would not
+be less than 0. At the last section of the sys_open() function is the line 'f->ip = ip'. This sets the
+inode value of f to be the value of ip obtained earlier. This shows a clear relationship between the 
+struct file and struct inode because the struct file, f, sets its inode value to be the value of the 
+struct inode, ip. Thus, there is a relationship between the 3 data structures because inorder to set
+the inode value of the "struct file" to be the value of the "struct inode", it requires that it be possible
+for the "fd" to be the value of fd allocation based on the "struct file", so they all work together
+for sys_open() to successfully work. At the very end of sys_open(), the "fd", fd, is returned, which was only
+possible because the 3 data structures were able to work together and not fail in the body of the function.

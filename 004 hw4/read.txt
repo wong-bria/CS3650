@@ -1,0 +1,55 @@
+Starting with sys_read() in sysfile.c it declares 3 variables: a pointer to struct file f, 
+int n, and pointer to a buffer p. It then has an if statement 
+  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
+argfd extracts the file descriptor from the system call based on the first argument
+and stores it in f. If successful then returns 0, otherwise -1. 
+argint extracts the nth, 2nd in this case, 32-bit system call argument and stores it in the second argument.
+If successful then returns 0 otherwise -1.
+argptr extracts the nth, 1st in this case, word-sized system call argument as a pointer
+to a block of memory of size n bytes, 1 byte in this case. If the pointer is within the
+process address space, then return 0, otherwise 1.
+
+If argfd(), argint(), or argptr() fails, then return -1 indicating failure. Otherwise, 
+return the result of fileread(f, p, n);
+
+fileread() is in file.c and it reads from file f, the first argument. It also declares variable int r.
+It then checks if the file f is not readable. If it is true that f is not readable, then return -1.
+Otherwise, check if f is a file of type pipe. If it is, then enter the body and return the result of
+piperead(f->pipe, addr, n) which handles reading from a pipe. In our case, we are interested in reading
+a regular file, so don't enter the body. It then checks if f is of type FD_INODE, so is it reading 
+from an inode (regular file). It is, so we enter the body: first lock the inode of f. Then
+go to the if statement: if((r = readi(f->ip, addr, f->off, n)) > 0). The first argument is the 
+inode of f, the second argument is the second argument of fileread(), which is *addr, or originally passed
+in as p, the third arugment is the offset of f, and the fourth argument n is the third argument of fileread,
+which was also called n when passed in. If readi returns a positive number, then it updates the offset of f
+by adding the number of bytes read. Regardless of what readi returns, the inode of f is unlocked and 
+the number of bytes read, r, is returned.
+
+If f is also not of type FD_INODE, then return the result of panic.
+
+readi() is in fs.c and it reads data from the first argument inode then puts it into the second argument,
+the destination buffer. The third argument is the offset in the file, so where it should start reading,
+and the fourth argument is n, the number of bytes read. It first checks if the type of file the inode
+is representing is of type device using if(ip->type == T_DEV). Since we are trying to read from an
+ordinary file into the destination, dst, we don't enter the body as ip->type would not be of type T_DEV.
+There is then an if statement that checks if(off > ip->size || off + n < off), so is off > size of the file
+the inode is representing or is off + n < off. The left side of the or prevents reading past the end of the file
+and the right side of the or prevents integer overflow. If either is true, then return -1 indicating failure.
+After the if statement is another if statement  if(off + n > ip->size) which checks if off + n > size of the file
+the inode is representing. If it is, then set n = ip->size - off, so size of the file the inode is representing 
+minus value of off. This will ensure n is reading only valid data. After the if statement is a for loop
+  for(tot=0; tot<n; tot+=m, off+=m, dst+=m)
+This for loop goes from when tot=0 all the way until tot is not less than n. After every iteration, 
+off increases by m and dst increases by m, too. The purpose of this loop is to read file blocks.
+The body starts by storing the result of bread(ip->dev, bmap(ip, off/BSIZE)) in a variable called
+bp. As the instruction stated, bread() reads a block based on its block number, 'blockno'.
+The body then continues by storing the result of  min(n - tot, BSIZE - off % BSIZE) in a variable called
+m. This line picks the minimum result of either (n - tot) or (BSIZE - off % BSIZE) to be stored in m
+because it determines the amount of bytes to read since m will be used as the third argument of
+memmove() in the next line, which is the argument to determine the number of bytes to read.
+The third line of the for loop's body is memmove(dst, bp->data + off % BSIZE, m) where it copies m bytes based
+on the 3rd argument from the second argument to the first argument, so this is the line where data from the block
+is copied into the destination. In particular, the second argument
+has bp->data which is where the data of the block is and '+ off % BSIZE' will determine the offset within
+the block for where reading should start. The final line of the body is brelse(bp) which will release the block
+bp so it can be used elsewhere. After the for loop is finished, it returns n, the total bytes read. 

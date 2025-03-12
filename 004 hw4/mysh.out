@@ -1,0 +1,10 @@
+$ "making directory tmp-testing"
+$ $ $ ""
+$ "chdir: tmp-testing, REDIRECT: echo 'Hi, mom' TO hello.txt"
+$ $ $ hello.txt
+$ "Hi, mom!"
+$ "Testing pipes: PIPE FROM ls TO wc"
+$       2       9      48
+$ "Removing tmp-testing directory"
+$ $ $ $ 
+$ 

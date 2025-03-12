@@ -1,0 +1,9 @@
+a)
+xv6 only has "access modes".
+
+b)
+In xv6, access modes are defined in fcntl.h. The name of the access modes are O_RDONLY for read only,
+O_WRONLY for write only, O_RDWR for read and write. The access modes are used in the file sysfile.c
+in the function sys_open() in the line 'if(ip->type == T_DIR && omode != O_RDONLY)'. The function
+sys_open() also uses the other two access modes in this one line:
+'f->writable = (omode & O_WRONLY) || (omode & O_RDWR);'.
