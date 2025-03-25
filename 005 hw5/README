@@ -1,0 +1,3 @@
+The entire direct-mapped cache works.
+For the fully associative cache, it correctly prints out all cache hits and cache misses. However, 15 cache rows have the wrong
+tag when I am printing out the cache contents.
